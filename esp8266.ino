@@ -32,32 +32,49 @@ const char *dnshostname = "esp8266";
 #undef BUILTIN_LED
 #define BUILTIN_LED 0
 
+// This will log to an embedis channel called "log".
+// Use SUBSCRIBE LOG to get these messages.
+// During setup() logs are also printed to Serial.
+void LOG(const String& message) {
+    static bool inSetup = true;
+    if (!message.length()) {
+        inSetup = false;
+        return;
+    }
+    if (inSetup) {
+        Serial.println(message);
+    }
+    Embedis::publish("log", message);
+}
+
+
 void setup() 
 {
     pinMode ( BUILTIN_LED, OUTPUT );
     Serial.begin(115200);
 
+    LOG( String() + F("Connecting to ") + ssid + F("..."));
+
     WiFi.begin ( ssid, password );
-    Serial.println ( "" );
-    Serial.print ( "Connecting to " );
-    Serial.print ( ssid );
-    Serial.println ( "..." );
     while ( WiFi.status() != WL_CONNECTED ) {
         digitalWrite (BUILTIN_LED, !digitalRead(BUILTIN_LED));
         delay ( 250 );
     }
-    Serial.println ( "Connected." );
-    Serial.print ( "IP: " );
-    Serial.println ( WiFi.localIP() );
+
+    LOG(F("Connected"));
+    LOG( String() + F("IP: ") + WiFi.localIP().toString() );
 
     if ( mdns.begin ( dnshostname, WiFi.localIP() ) ) {
-        Serial.print ( String(F("MDNS: ")) + dnshostname + F(".local") );
+        LOG( String() + F("MDNS: ") +  dnshostname + F(".local"));
     }
 
     setup_EEPROM();
     setup_vcc();
     setup_webserver();
     setup_telnet();
+
+    LOG("READY");
+    LOG(""); // End setup logging
 }
 
 

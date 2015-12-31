@@ -25,6 +25,21 @@
 
 ESP8266WebServer server80( 80 );
 
+class LogRequestHandler : public RequestHandler {
+public:
+    virtual bool canHandle(HTTPMethod method, String uri) {
+        String ls("Webserver ");
+        if (method == HTTP_GET) ls += "GET ";
+        if (method == HTTP_POST) ls += "POST ";
+        if (method == HTTP_PUT) ls += "PUT ";
+        if (method == HTTP_PATCH) ls += "PATCH  ";
+        if (method == HTTP_DELETE) ls += "DELETE ";
+        if (method == HTTP_OPTIONS) ls += "OPTIONS ";
+        LOG(ls + uri);
+        return false;
+    }
+};
+
 void setup_webserver() 
 {
     setup_webserver("");
@@ -34,10 +49,22 @@ void setup_webserver()
 // e.g. setup_webserver(F("/path/to/files"))
 void setup_webserver(const String& root) 
 {
-    SPIFFS.begin();
-    server80.on ( "/api/getVcc", webserver_api_getVcc );
+    // SPIFFS.begin() can crash so we log something before trying.
+    // If crashing or failing here you probably didn't upload the filesystem.
+    // https://github.com/esp8266/arduino-esp8266fs-plugin/releases
+    LOG(F("Mounting filesystem..."));
+    if (SPIFFS.begin()) LOG(F("Filesystem available"));
+    else LOG(F("Filesystem failure"));
+
+    // handlers added after LogRequestHandler will be logged
+    server80.addHandler(new LogRequestHandler);
+    server80.on ("/embedis", HTTP_POST, webserver_embedis);
     server80.serveStatic("", SPIFFS, root.c_str(), "");
+
     server80.begin();
+    String ws = F("Webserver started");
+    if (root.length()) ws = ws + F(" serving ") + root;
+    LOG(ws);
 }
 
 void loop_webserver() 
@@ -45,8 +72,90 @@ void loop_webserver()
     server80.handleClient();
 }
 
-bool webserver_api_getVcc() 
-{
-    server80.send(200, "text/plain", read_vcc());
-}
 
+class EmbedisStringStream : public Stream {
+public:
+    String* in;
+    unsigned int pos;
+    String pubout;
+    String cmdout;
+    bool puboverflow;
+    bool cmdoverflow;
+    const unsigned int outsize;
+    String concat;
+    EmbedisStringStream(unsigned int size) : in(0), outsize(size) {
+        pubout.reserve(size);
+        cmdout.reserve(size);
+        flush();
+    }
+    virtual size_t write(uint8_t c) {
+        if (in) {
+            if (cmdout.length() >= outsize) cmdoverflow = true;
+            if (cmdoverflow) return 0;
+            cmdout += (char)c;
+        } else {
+            if (pubout.length() >= outsize) puboverflow = true;
+            if (puboverflow) return 0;
+            pubout += (char)c;
+        }
+        return 1;
+    }
+    virtual size_t write(const uint8_t *buffer, size_t size) {
+        size_t count = 0;
+        for (size_t i = 0; i < size; i++) {
+            count += write(buffer[i]);
+        }
+        return count;
+    }
+    virtual int available() {
+        if (!in) return 0;
+        return in->length() - pos;
+    }
+    virtual int read() {
+        if (!in || pos >= in->length()) return -1;
+        return (*in)[pos++];
+    }
+    virtual int peek() {
+        if (!in || pos >= in->length()) return -1;
+        return (*in)[pos];
+    }
+    virtual void flush() {
+        pubout.remove(0);
+        puboverflow = false;
+    }
+    void setCommand(String* s) {
+        in = s;
+        pos = 0;
+        cmdout.remove(0);
+        cmdoverflow = false;
+    }
+};
+
+EmbedisStringStream ess80(2048);
+Embedis embedis80(ess80);
+
+bool webserver_embedis()
+{
+    // ESP8266WebServer won't send a content length for an empty string.
+    // Where this can happen the length must be explicitly set.
+    // Otherwise XHR can be slow. Extremely slow.
+    String cmd = server80.arg("cmd");
+    if (cmd.length()) {
+        embedis80.reset();
+        cmd += "\r\n";
+        ess80.setCommand(&cmd);
+        embedis80.process();
+        if (ess80.cmdoverflow) {
+            server80.send(200, "text/plain", "-ERROR result overflow\r\n");
+        } else {
+            server80.setContentLength(ess80.cmdout.length());
+            server80.send(200, "text/plain", ess80.cmdout);
+        }
+        ess80.setCommand(0);
+    } else {
+        if (ess80.puboverflow) ess80.flush();
+        server80.setContentLength(ess80.pubout.length());
+        server80.send(200, "text/plain", ess80.pubout);
+        ess80.flush();
+    }
+}

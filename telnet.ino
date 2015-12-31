@@ -18,7 +18,7 @@
 
 // Telnet server which connects to Embedis.
 // Call setup_telnet() from your main setup() function.
-// Call loop_telnet from your main loop() function.
+// Call loop_telnet() from your main loop() function.
 
 
 #include <WiFiServer.h>

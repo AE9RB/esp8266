@@ -29,6 +29,7 @@ void setup()
     pinMode ( BUILTIN_LED, OUTPUT );
     Serial.begin(115200);
     setup_EEPROM(); // keep first, settings stored here
+    setup_commands();
     setup_vcc();
     setup_webserver();
     setup_telnet();

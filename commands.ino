@@ -32,7 +32,6 @@ void setup_commands()
 
     Embedis::command( F("RESET"), [](Embedis* e) {
         ESP.reset();
-        delay(1);
         while(1) {}
     });
 
@@ -75,10 +74,10 @@ void setup_commands()
 
     Embedis::command( F("analogRead"), [](Embedis* e) {
         if (e->argc != 2) return e->response(Embedis::ARGS_ERROR);
-        int pin = String(e->argv[1]).toInt();        
+        int pin = String(e->argv[1]).toInt();
         e->response(':', analogRead(pin));
     });
-    
+
 }
 
 

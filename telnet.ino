@@ -31,8 +31,10 @@ Embedis embedis23(server23Client);
 
 void setup_telnet() 
 {
+    server23 = WiFiServer(23); // Why is this needed?
     server23.begin();
     server23.setNoDelay(true);
+    LOG("Started telnet server");
 }
 
 void loop_telnet() 

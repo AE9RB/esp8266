@@ -18,7 +18,7 @@
 
 // HTTP server which serves static files from SPIFFS.
 // Call setup_webserver() from your main setup() function.
-// Call loop_webserver from your main loop() function.
+// Call loop_webserver() from your main loop() function.
 
 #include <ESP8266WebServer.h>
 #include <FS.h>
@@ -62,7 +62,7 @@ void setup_webserver(const String& root)
     server80.serveStatic("", SPIFFS, root.c_str(), "");
 
     server80.begin();
-    String ws = F("Webserver started");
+    String ws = F("Started webserver");
     if (root.length()) ws = ws + F(" serving ") + root;
     LOG(ws);
 }

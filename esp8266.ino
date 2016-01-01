@@ -15,26 +15,68 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
-#include <ESP8266WiFi.h>
-#include <ESP8266mDNS.h>
+#include <ESP8266WiFi.h> // keep here to supress Arduino error
 #include "Embedis.h"
 
 Embedis embedis(Serial);
-MDNSResponder mdns;
-
-//TODO temporary until configured by embedis
-const char *ssid = ".....";
-const char *password = ".....";
-const char *dnshostname = "esp8266";
 
 //TODO temporary until we have our variant
 #undef BUILTIN_LED
 #define BUILTIN_LED 0
 
+void setup() 
+{
+    pinMode ( BUILTIN_LED, OUTPUT );
+    Serial.begin(115200);
+    setup_EEPROM(); // keep first, settings stored here
+    setup_vcc();
+    setup_webserver();
+    setup_telnet();
+}
+
+
+void loop() 
+{
+    embedis.process();
+    blink( loop_wifi() );
+    loop_webserver();
+    loop_telnet();
+}
+
+
+// Blink out a number. More than 2 may be hard to count.
+// Using 0 blinks fast and steady.
+void blink(int num) {
+    static unsigned long heartbeat = 0;
+    static int beatcount = 0;
+
+    unsigned long now = millis();
+    if (now > heartbeat) {
+        if (digitalRead(BUILTIN_LED)) {
+            digitalWrite (BUILTIN_LED, 0);
+            if (!num) heartbeat = now + 250;
+            else heartbeat = now + 1;
+        } else {
+            digitalWrite (BUILTIN_LED, 1);
+            if (!num) heartbeat = now + 250;
+            else {
+                if (beatcount) {
+                    --beatcount;
+                    heartbeat = now + 175;
+                } else {
+                    beatcount = num - 1;
+                    heartbeat = now + 999;
+                }
+            }
+        }
+    }
+}
+
+
 // This will log to an embedis channel called "log".
 // Use SUBSCRIBE LOG to get these messages.
-// During setup() logs are also printed to Serial.
+// Logs are also printed to Serial until an empty message is received.
+// Success with WiFi sends an empty message.
 void LOG(const String& message) {
     static bool inSetup = true;
     if (!message.length()) {
@@ -47,55 +89,4 @@ void LOG(const String& message) {
     Embedis::publish("log", message);
 }
 
-
-void setup() 
-{
-    pinMode ( BUILTIN_LED, OUTPUT );
-    Serial.begin(115200);
-
-    LOG( String() + F("Connecting to ") + ssid + F("..."));
-
-    WiFi.begin ( ssid, password );
-    while ( WiFi.status() != WL_CONNECTED ) {
-        digitalWrite (BUILTIN_LED, !digitalRead(BUILTIN_LED));
-        delay ( 250 );
-    }
-
-    LOG(F("Connected"));
-    LOG( String() + F("IP: ") + WiFi.localIP().toString() );
-
-    if ( mdns.begin ( dnshostname, WiFi.localIP() ) ) {
-        LOG( String() + F("MDNS: ") +  dnshostname + F(".local"));
-    }
-
-    setup_EEPROM();
-    setup_vcc();
-    setup_webserver();
-    setup_telnet();
-
-    LOG("READY");
-    LOG(""); // End setup logging
-}
-
-
-void loop() 
-{
-    static unsigned long heartbeat = 0;
-    unsigned long now = millis();
-    if (now > heartbeat) {
-        if (digitalRead(BUILTIN_LED)) {
-            digitalWrite (BUILTIN_LED, 0);
-            heartbeat = now + 1;
-        } else {
-            digitalWrite (BUILTIN_LED, 1);
-            heartbeat = now + 999;
-        }
-    }
-    
-    embedis.process();
-    mdns.update();
-    
-    loop_webserver();
-    loop_telnet();
-}
 

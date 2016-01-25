@@ -37,12 +37,16 @@ DNSServer dnsServer;
 // ap_passphrase : for securing this access point (optional)
 
 
+static const unsigned int TIMEOUT = 200; // ms
+static const unsigned int TIMEOUT_COUNT = 10000 / TIMEOUT; // 10 secs
+
 // Returns: (can be used for status LED)
 //  0 while connecting
 //  1 when connected
 //  2 as access point
 int loop_wifi() {
-    static int loop_wifi_state = 0;
+    static unsigned int loop_wifi_state = 0;
+    static unsigned int timeout_count = 0;
     static unsigned int timeout;
 
     if (loop_wifi_state == 0) {
@@ -52,7 +56,6 @@ int loop_wifi() {
         if (mode == "ap") loop_wifi_state = 1;
         else if (mode == "sta") loop_wifi_state = 3;
         else loop_wifi_state = 6;
-        timeout = millis() + 10000; // 10 sec
         return 0;
     }
     if (loop_wifi_state == 1) {
@@ -82,17 +85,25 @@ int loop_wifi() {
             loop_wifi_state = 1; 
             return 0;
         }
-        LOG(String() + F("Connecting to: ") + ssid);
+        if (timeout_count == 0) {
+            LOG(String() + F("Connecting to: ") + ssid);
+        }
         WiFi.mode(WIFI_STA);
         WiFi.begin ( ssid.c_str(), passphrase.c_str() );
+        timeout = millis() + TIMEOUT;
         ++loop_wifi_state;
         return 0;
     }
     if (loop_wifi_state == 7) {
         if (WiFi.status() == WL_CONNECTED) loop_wifi_state = 4;
         else if (millis() > timeout) {
-            loop_wifi_state = 1;
+            timeout_count++;
             LOG(F("Unable to connect."));
+            if (timeout_count > TIMEOUT_COUNT) {
+                loop_wifi_state = 1;
+            } else {
+                loop_wifi_state = 6;
+            }
         }
         return 0;
     }
@@ -109,6 +120,9 @@ int loop_wifi() {
             LOG(""); // End setup logging
             ++loop_wifi_state;
             return 1;
+        } else if (millis() > timeout) {
+            timeout_count = 1;
+            loop_wifi_state = 3;
         }
         return 0;
     }

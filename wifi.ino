@@ -37,8 +37,7 @@ DNSServer dnsServer;
 // ap_passphrase : for securing this access point (optional)
 
 
-static const unsigned int TIMEOUT = 200; // ms
-static const unsigned int TIMEOUT_COUNT = 10000 / TIMEOUT; // 10 secs
+static const unsigned int TIMEOUT = 15000; // ms
 
 // Returns: (can be used for status LED)
 //  0 while connecting
@@ -46,7 +45,6 @@ static const unsigned int TIMEOUT_COUNT = 10000 / TIMEOUT; // 10 secs
 //  2 as access point
 int loop_wifi() {
     static unsigned int loop_wifi_state = 0;
-    static unsigned int timeout_count = 0;
     static unsigned int timeout;
 
     if (loop_wifi_state == 0) {
@@ -85,25 +83,24 @@ int loop_wifi() {
             loop_wifi_state = 1; 
             return 0;
         }
-        if (timeout_count == 0) {
-            LOG(String() + F("Connecting to: ") + ssid);
-        }
         WiFi.mode(WIFI_STA);
         WiFi.begin ( ssid.c_str(), passphrase.c_str() );
-        timeout = millis() + TIMEOUT;
-        ++loop_wifi_state;
+        if (WiFi.status() == WL_IDLE_STATUS) {
+            WiFi.disconnect();
+        } else {
+            LOG(String() + F("Connecting to: ") + ssid);
+            timeout = millis() + TIMEOUT;
+            ++loop_wifi_state;
+        }
         return 0;
     }
     if (loop_wifi_state == 7) {
-        if (WiFi.status() == WL_CONNECTED) loop_wifi_state = 4;
+        if (WiFi.status() == WL_CONNECTED) {
+            loop_wifi_state = 4;
+        }
         else if (millis() > timeout) {
-            timeout_count++;
             LOG(F("Unable to connect."));
-            if (timeout_count > TIMEOUT_COUNT) {
-                loop_wifi_state = 1;
-            } else {
-                loop_wifi_state = 6;
-            }
+            loop_wifi_state = 1;
         }
         return 0;
     }
@@ -120,9 +117,6 @@ int loop_wifi() {
             LOG(""); // End setup logging
             ++loop_wifi_state;
             return 1;
-        } else if (millis() > timeout) {
-            timeout_count = 1;
-            loop_wifi_state = 3;
         }
         return 0;
     }
@@ -134,6 +128,3 @@ int loop_wifi() {
     // should never get here
     return 0;
 }
-
-
-

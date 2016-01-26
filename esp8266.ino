@@ -20,13 +20,8 @@
 
 Embedis embedis(Serial);
 
-//TODO temporary until we have our variant
-#undef BUILTIN_LED
-#define BUILTIN_LED 0
-
 void setup() 
 {
-    pinMode ( BUILTIN_LED, OUTPUT );
     Serial.begin(115200);
     setup_EEPROM(); // keep first, settings stored here
     setup_commands();
@@ -50,21 +45,24 @@ void loop()
 void blink(int num) {
     static unsigned long heartbeat = 0;
     static int beatcount = 0;
+    static uint8_t led = 30;
 
     unsigned long now = millis();
     if (now > heartbeat) {
-        if (digitalRead(BUILTIN_LED)) {
-            digitalWrite (BUILTIN_LED, 0);
+        if (digitalRead(led)) {
+            digitalWrite (led, 0);
             if (!num) heartbeat = now + 250;
             else heartbeat = now + 1;
         } else {
-            digitalWrite (BUILTIN_LED, 1);
+            digitalWrite (led, 1);
             if (!num) heartbeat = now + 250;
             else {
                 if (beatcount) {
                     --beatcount;
                     heartbeat = now + 175;
                 } else {
+                    led++;
+                    if (led > 32) led = 30;
                     beatcount = num - 1;
                     heartbeat = now + 999;
                 }

@@ -22,12 +22,8 @@
 MDNSResponder mdns;
 DNSServer dnsServer;
 
-// WiFi configuration manager. To use:
+// WiFi connection manager. To use:
 // Call loop_wifi() from your main loop() function.
-
-// Comfiguration is loaded from the default dictionary.
-// mode : sta = station, ap = access point, anything else is auto-detect
-//        which reverts to an access point after failing to connect as a station.
 
 // ssid : access point to connect to in station mode
 // passphrase : for access point ssid (optional)
@@ -48,25 +44,24 @@ int loop_wifi() {
     static unsigned int timeout;
 
     if (loop_wifi_state == 0) {
-        String mode;
-        Embedis::get("mode", mode);
-        mode.toLowerCase();
+        String mode = setting_wifi_mode();
         if (mode == "ap") loop_wifi_state = 1;
         else if (mode == "sta") loop_wifi_state = 3;
         else loop_wifi_state = 6;
         return 0;
     }
     if (loop_wifi_state == 1) {
-        String ap_ssid(F("esp8266"));
-        String ap_passphrase;
-        Embedis::get("ap_ssid", ap_ssid);
-        Embedis::get("ap_passphrase", ap_passphrase);
-
+        String ap_ssid = setting_ap_ssid();
+        String ap_passphrase = setting_ap_passphrase();
         LOG( String() + F("Started access point: ") + ap_ssid);
-        LOG(""); // End setup logging
+        if (ap_passphrase == setting_default_passphrase()) {
+            LOG( String() + F("WiFi Passphrase: : ") + ap_passphrase);
+        }
         WiFi.mode(WIFI_AP);
         WiFi.softAP(ap_ssid.c_str(), ap_passphrase.c_str());
         dnsServer.start(53, "*", WiFi.softAPIP());
+        LOG( String() + F("IP: ") + WiFi.softAPIP().toString() );
+        LOG(""); // End setup logging
         ++loop_wifi_state;
         return 0;
     }
@@ -75,10 +70,8 @@ int loop_wifi() {
         return 2;
     }
     if (loop_wifi_state == 3 || loop_wifi_state == 6) {
-        String ssid;
-        String passphrase;
-        Embedis::get("ssid", ssid);
-        Embedis::get("passphrase", passphrase);
+        String ssid = setting_sta_ssid();
+        String passphrase = setting_sta_passphrase();
         if (!ssid.length() && loop_wifi_state == 6) {
             loop_wifi_state = 1; 
             return 0;
@@ -107,8 +100,7 @@ int loop_wifi() {
     if (loop_wifi_state == 4) {
         if (WiFi.status() == WL_CONNECTED) {
             LOG( String() + F("Connected. IP: ") + WiFi.localIP().toString() );
-            String hostname(F("esp8266"));
-            Embedis::get("hostname", hostname);
+            String hostname = setting_mdns_hostname();
             if (hostname.length()) {
                 if(mdns.begin ( hostname.c_str(), WiFi.localIP() ) ) {
                     LOG( String() + F("MDNS: ") +  hostname + F(".local"));

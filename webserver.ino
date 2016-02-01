@@ -15,6 +15,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// CAUTION: HTTP Basic Auth isn't secure.
+//          Credentials are sent in clear text.
 
 // HTTP server which serves static files from SPIFFS.
 // Call setup_webserver() from your main setup() function.
@@ -65,6 +67,10 @@ void setup_webserver(const String& root)
     String ws = F("Started webserver");
     if (root.length()) ws = ws + F(" serving ") + root;
     LOG(ws);
+    String passphrase = setting_login_passphrase();
+    if (passphrase == setting_default_passphrase()) {
+        LOG(String("HTTP Basic Auth: ") + setting_login_name() + ":" + passphrase);
+    }
 }
 
 void loop_webserver() 
@@ -136,11 +142,22 @@ Embedis embedis80(ess80);
 
 bool webserver_embedis()
 {
+    String passphrase = setting_login_passphrase();
+    bool authenticated;
+    if (!passphrase.length()) {
+        authenticated = true;
+    } else {
+        authenticated = server80.authenticate(setting_login_name().c_str(), passphrase.c_str());
+    }
     // ESP8266WebServer won't send a content length for an empty string.
     // Where this can happen the length must be explicitly set.
     // Otherwise XHR can be slow. Extremely slow.
     String cmd = server80.arg("cmd");
     if (cmd.length()) {
+        if (!authenticated) {
+            server80.requestAuthentication();
+            return true;
+        }
         embedis80.reset();
         cmd += "\r\n";
         ess80.setCommand(&cmd);
@@ -153,6 +170,11 @@ bool webserver_embedis()
         }
         ess80.setCommand(0);
     } else {
+        if (!authenticated) {
+            server80.setContentLength(0);
+            server80.send(200, "text/plain", "");
+            return true;
+        }
         if (ess80.puboverflow) ess80.flush();
         server80.setContentLength(ess80.pubout.length());
         server80.send(200, "text/plain", ess80.pubout);

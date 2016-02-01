@@ -15,6 +15,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// CAUTION: This example demonstrates some simple authentication methods.
+//          These are not secure. They are examples to remind you about security.
+//          Consult a security expert if you need security.
+
 #include <ESP8266WiFi.h> // keep here to supress Arduino error
 #include "Embedis.h"
 
@@ -78,14 +82,12 @@ void blink(int num) {
 // Success with WiFi sends an empty message.
 void LOG(const String& message) {
     static bool inSetup = true;
-    if (!message.length()) {
-        inSetup = false;
-        return;
-    }
     if (inSetup) {
-        Serial.println(message);
+        if (!message.length()) {
+            inSetup = false;
+            return;
+        }
+        SERIAL_PORT_MONITOR.println(message);
     }
     Embedis::publish("log", message);
 }
-
-

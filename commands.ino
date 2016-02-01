@@ -38,12 +38,12 @@ void setup_commands()
     Embedis::command( F("pinMode"), [](Embedis* e) {
         if (e->argc != 3) return e->response(Embedis::ARGS_ERROR);
         int pin = String(e->argv[1]).toInt();
-        String argv3(e->argv[2]);
-        argv3.toUpperCase();
+        String argv2(e->argv[2]);
+        argv2.toUpperCase();
         int mode;
-        if (argv3 == "INPUT") mode = INPUT;
-        else if (argv3 == "OUTPUT") mode = OUTPUT;
-        else if (argv3 == "INPUT_PULLUP") mode = INPUT_PULLUP;
+        if (argv2 == "INPUT") mode = INPUT;
+        else if (argv2 == "OUTPUT") mode = OUTPUT;
+        else if (argv2 == "INPUT_PULLUP") mode = INPUT_PULLUP;
         else return e->response(Embedis::ARGS_ERROR);
         pinMode(pin, mode);
         e->response(Embedis::OK);
@@ -52,12 +52,12 @@ void setup_commands()
     Embedis::command( F("digitalWrite"), [](Embedis* e) {
         if (e->argc != 3) return e->response(Embedis::ARGS_ERROR);
         int pin = String(e->argv[1]).toInt();
-        String argv3(e->argv[2]);
-        argv3.toUpperCase();
+        String argv2(e->argv[2]);
+        argv2.toUpperCase();
         int mode;
-        if (argv3 == "HIGH") mode = HIGH;
-        else if (argv3 == "LOW") mode = LOW;
-        else mode = argv3.toInt();
+        if (argv2 == "HIGH") mode = HIGH;
+        else if (argv2 == "LOW") mode = LOW;
+        else mode = argv2.toInt();
         digitalWrite(pin, mode);
         e->response(Embedis::OK);
     });
@@ -79,5 +79,3 @@ void setup_commands()
     });
 
 }
-
-

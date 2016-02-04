@@ -15,11 +15,12 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// CAUTION: Password auth isn't secure.
+//          Credentials are sent in clear text.
 
 // Telnet server which connects to Embedis.
 // Call setup_telnet() from your main setup() function.
 // Call loop_telnet() from your main loop() function.
-
 
 #include <WiFiServer.h>
 #include <WiFiClient.h>
@@ -37,9 +38,12 @@ void setup_telnet()
     LOG("Started telnet server");
 }
 
+String temp_telnet_passphrase;
+
 void loop_telnet() 
 {
     static int eat = 0;
+    static int auth = 0;
 
     // new connections
     if (server23.hasClient()) {
@@ -48,29 +52,90 @@ void loop_telnet()
             server23Client = server23.available();
             embedis23.reset(true);
             eat = 0;
+            auth = -2;
         } else {
             server23.available().stop();
         }
     }
 
+    int ch;
+
     // discard negotiation from the client
-    while (eat >= 0) {
-        if (server23Client.peek() < 0) return;
-        if (eat) {
+    while (eat >= 0 || auth >= 0) {
+        int peek = server23Client.peek();
+        if (peek < 0) break;
+        if (peek == 255) {
             server23Client.read();
-            eat--; 
+            eat = 2;
             continue;
         }
-        if (server23Client.peek() == 255) {
-            eat = 3;
+        if (eat > 0 && eat <= 3) {
+            ch = server23Client.read();
+            if (--eat==1) {
+                if (ch == 250) eat = 250; // SB
+                if (ch == 240) eat = 0;   // SE
+            }
+            continue;
+        }
+        if (eat == 250 || peek == 0 || peek == 10) {
+            server23Client.read();
             continue;
         }
         eat = -1;
         break;
     }
 
-    // handle the stream
-    embedis23.process();
+    switch(auth) {
+    case -99:
+        // Logged in
+        if (eat < 0) embedis23.process();
+        break;
+    case -2:
+        server23Client.write(255); // IAB
+        server23Client.write(253); // DO
+        server23Client.write(34);  // LINEMODE
+        server23Client.write(255); // IAB
+        server23Client.write(250); // SB
+        server23Client.write(34);  // LINEMODE
+        server23Client.write(1);   // MODE: EDIT
+        server23Client.write(3);   // DEFAULT MASK
+        server23Client.write(255); // IAB
+        server23Client.write(240); // SE
+        server23Client.write(255); // IAB
+        server23Client.write(251); // WILL
+        server23Client.write(1);   // ECHO
+        //nobreak
+    case -1:
+        server23Client.print("Password:");
+        temp_telnet_passphrase = setting_login_passphrase();
+        auth = 0;
+        return;
+    default:
+        if (eat >= 0) return;
+        ch = server23Client.read();
+        if (ch < 0) break;
+        if (ch == 13) {
+            server23Client.println("");
+            if (auth == temp_telnet_passphrase.length()) {
+                server23Client.write(255); // IAB
+                server23Client.write(252); // WONT
+                server23Client.write(1);   // ECHO
+                auth = -99;
+                temp_telnet_passphrase = "";
+                server23Client.println("Logged in.");
+            } else {
+                auth = -1;
+            }
+            eat = 0;
+            break;
+        }
+        if (auth >= 0 && temp_telnet_passphrase[auth] == ch) {
+            auth++;
+            break;
+        }
+        // Failed password. Stay in default until CR.
+        auth = -3;
+        break;
+    }
+
 }
-
-
